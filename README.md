@@ -1,0 +1,1 @@
+# Simple Template for JWT Auth
