@@ -1,8 +1,8 @@
 import { CREATED, OK, UNAUTHORIZED } from "../constants/http";
 import { Request, Response } from "express";
 import { clearAuthCookies, getAccessTokenCookieOptions, getRefreshTokenCookieOptions, setAuthCookies } from "../utils/cookies";
-import { createAccount, loginUser, refreshUserAccessToken, sendPasswordResetEmail, verifyEmail } from "../services/auth.service";
-import { emailSchema, loginSchema, registerSchema, verificationCodeSchema } from "./auth.schemas";
+import { createAccount, loginUser, refreshUserAccessToken, resetPassword, sendPasswordResetEmail, verifyEmail } from "../services/auth.service";
+import { emailSchema, loginSchema, registerSchema, resetPasswordSchema, verificationCodeSchema } from "./auth.schemas";
 
 import SessionModel from "../models/session.model";
 import appAssert from "../utils/appAssert";
@@ -100,3 +100,14 @@ export const sendPasswordResetHandler = catchErrors(async(req, res) => {
     })
 })
 
+
+export const resetPasswordHandler = catchErrors(async(req: Request, res: Response) => {
+    const request = resetPasswordSchema.parse(req.body);
+
+    await resetPassword(request);
+
+    return clearAuthCookies(res).status(OK).json({
+        message: "Password successfully changed"
+    })
+    
+})

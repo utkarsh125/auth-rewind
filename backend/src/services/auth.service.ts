@@ -14,6 +14,7 @@ import UserModel from "../models/user.model";
 import VerificationCodeModel from "../models/verificationCode.model";
 import VerificationCodeType from "../constants/verificationCodeType";
 import appAssert from "../utils/appAssert";
+import { hashValue } from "../utils/bcrypt";
 import jwt from "jsonwebtoken";
 import { sendMail } from "../utils/sendMail";
 
@@ -256,5 +257,48 @@ export const sendPasswordResetEmail = async(email: string) => {
   return{
     url,
     emailId: data.id,
+  }
+}
+
+type ResetPasswordParams = {
+  password: string;
+  verificationCode: string;
+}
+
+export const resetPassword = async(
+  {password, verificationCode} : ResetPasswordParams
+) => {
+  //get the verification code
+  const validCode = await VerificationCodeModel.findOne({
+    _id: verificationCode,
+    type: VerificationCodeType.PasswordReset,
+    expiresAt: 
+    { $gt: new Date() },
+  })
+
+  appAssert(validCode, NOT_FOUND, "Invalid or Expired Verification Code");
+
+
+  //update the users password if valid
+
+  const updatedUser = await UserModel.findByIdAndUpdate(
+    validCode.userId,
+    {
+      password: await hashValue(password)
+      
+    }
+  )
+
+  appAssert(updatedUser, INTERNAL_SERVER_ERROR, "Failed to reset password");
+
+
+  //delete the verification code
+  await validCode.deleteOne({
+    userId: updatedUser._id
+  })
+
+  //delete all sessions of that user
+  return{
+    user: updatedUser.omitPassword(),
   }
 }

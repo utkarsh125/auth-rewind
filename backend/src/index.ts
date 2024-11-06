@@ -5,12 +5,14 @@ import { APP_ORIGIN, NODE_ENV, PORT } from "./constants/env";
 import { NextFunction, Request, Response } from "express";
 
 import authRoutes from "./routes/auth.route";
+import authenticate from "./middleware/authenticate";
 import catchErrors from "./utils/catchErrors";
 import connectToDatabase from "./config/db";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import errorHandler from "./middleware/errorHandler";
 import express from "express";
+import userRoutes from "./routes/user.route";
 
 const app = express();
 
@@ -42,6 +44,12 @@ app.get("/", (req, res, next) => {
         status: "Healthy",
     })
 })
+
+//USER ROUTES
+app.use("/auth", authRoutes);
+
+//Protected Routes
+app.use("/user", authenticate, userRoutes)
 
 //AUTH ROUTES
 app.use("/auth", authRoutes)

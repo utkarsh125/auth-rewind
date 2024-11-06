@@ -19,6 +19,10 @@ export const registerSchema = loginSchema.extend({
   });
 
 
-  export const verificationCodeSchema = z.string().min(1).max(24); //based off on mongodb unique ids
+export const verificationCodeSchema = z.string().min(1).max(24); //based off on mongodb unique ids
 
-  
+export const resetPasswordSchema = z.object({
+  password: passwordSchema,
+  verificationCode: verificationCodeSchema,
+})
+
