@@ -12,6 +12,7 @@ import cookieParser from "cookie-parser";
 import cors from "cors";
 import errorHandler from "./middleware/errorHandler";
 import express from "express";
+import sessionRoutes from "./routes/session.route";
 import userRoutes from "./routes/user.route";
 
 const app = express();
@@ -50,9 +51,11 @@ app.use("/auth", authRoutes);
 
 //Protected Routes
 app.use("/user", authenticate, userRoutes)
+app.use("/sessions", authenticate, sessionRoutes);
 
 //AUTH ROUTES
 app.use("/auth", authRoutes)
+
 // Error handler middleware
 app.use(errorHandler);
 
