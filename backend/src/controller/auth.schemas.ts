@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-const emailSchema = z.string().email().min(1).max(255);
+export const emailSchema = z.string().email().min(1).max(255);
 const passwordSchema = z.string().min(1).max(255);
 
 
@@ -17,3 +17,8 @@ export const registerSchema = loginSchema.extend({
     message: "Passwords do not match",
     path: ["confirmPassword"],
   });
+
+
+  export const verificationCodeSchema = z.string().min(1).max(24); //based off on mongodb unique ids
+
+  

@@ -1,12 +1,13 @@
-import { CONFLICT, UNAUTHORIZED } from "../constants/http";
-import { JWT_REFRESH_SECRET, JWT_SECRET } from "../constants/env";
-import { ONE_DAY_MS, oneYearFromNow, thirtyDaysFromNow } from "../utils/Date";
+import { APP_ORIGIN, JWT_REFRESH_SECRET, JWT_SECRET } from "../constants/env";
+import { CONFLICT, INTERNAL_SERVER_ERROR, NOT_FOUND, TOO_MANY_REQUESTS, UNAUTHORIZED } from "../constants/http";
+import { ONE_DAY_MS, fiveMinutesAgo, oneHourNow, oneYearFromNow, thirtyDaysFromNow } from "../utils/Date";
 import {
   RefreshTokenPayload,
   refreshTokenSignOptions,
   signToken,
   verifyToken,
 } from "../utils/jwt";
+import { getPasswordResetTemplate, getVerifyEmailTemplate } from "../utils/emailTemplates";
 
 import SessionModel from "../models/session.model";
 import UserModel from "../models/user.model";
@@ -14,6 +15,7 @@ import VerificationCodeModel from "../models/verificationCode.model";
 import VerificationCodeType from "../constants/verificationCodeType";
 import appAssert from "../utils/appAssert";
 import jwt from "jsonwebtoken";
+import { sendMail } from "../utils/sendMail";
 
 export type CreateAccountParams = {
   email: string;
@@ -38,7 +40,7 @@ export const createAccount = async (data: CreateAccountParams) => {
 
   //create verification code
   const userId = user._id;
-  const verifcationCode = await VerificationCodeModel.create({
+  const verificationCode = await VerificationCodeModel.create({
     userId,
     type: VerificationCodeType.EmailVerification,
     expiresAt: oneYearFromNow(),
@@ -46,6 +48,17 @@ export const createAccount = async (data: CreateAccountParams) => {
 
   //TODO:
   //send verification email
+
+  const url = `${APP_ORIGIN}/email/verify/${verificationCode._id}`;
+  const { error } = 
+  await sendMail({
+    to: user.email,
+    ...getVerifyEmailTemplate(url),
+  });
+
+  if(error){
+    console.log(error)
+  }
 
   //create session
   const session = await SessionModel.create({
@@ -167,3 +180,81 @@ export const refreshUserAccessToken = async (refreshToken: string) => {
     newRefreshToken
   }
 };
+
+
+export const verifyEmail = async(code: string) =>{
+  //get the verification code
+  const validCode = await VerificationCodeModel.findOne({
+    _id: code,
+    type: VerificationCodeType.EmailVerification,
+    expiresAt: {$gt: new Date() }
+  })
+
+  appAssert(validCode, NOT_FOUND, "Invalid or Expired verification code");
+
+  //update user to verified true
+  const updateUser = await UserModel.findByIdAndUpdate(
+    validCode.userId, // Pass the userId directly here
+    {
+      verified: true, // Update object
+    },
+    { new: true } //return the updated document
+  );
+
+  appAssert(updateUser, INTERNAL_SERVER_ERROR, "Failed to verify email");
+  
+  //delete verification code
+  await validCode.deleteOne();
+
+
+  //return user
+  return {
+    user: updateUser.omitPassword()
+  }
+}
+
+
+export const sendPasswordResetEmail = async(email: string) => {
+
+  //get the user by email
+  const user = await UserModel.findOne({email});
+  appAssert(user, NOT_FOUND, "User not found");
+
+  //check email rate limit ---> WE DONT WANT THE USER INFINITE REQUESTS
+  const fiveMinAgo = fiveMinutesAgo();
+  const count = await VerificationCodeModel.countDocuments({
+    userId: user._id,
+    type: VerificationCodeType.PasswordReset,
+    created: { $gt: fiveMinAgo },
+  })
+
+  appAssert(count<=1, TOO_MANY_REQUESTS, "Too many requests, please try again later");
+
+  //Create verification code
+  const expiresAt = oneHourNow();
+  const verificationCode = await VerificationCodeModel.create({
+    userId: user.id,
+    type: VerificationCodeType.PasswordReset,
+    expiresAt,
+  })
+
+  //send verification mail
+  const url = `${APP_ORIGIN}/password/reset?code=${verificationCode._id}&exp=${expiresAt.getTime()}`;
+
+  const { data, error } = await sendMail({
+    to: user.email,
+    ...getPasswordResetTemplate(url),
+  })
+
+  appAssert(
+    data?.id,
+    INTERNAL_SERVER_ERROR,
+    `${error?.name} - ${error?.message}`
+  )
+  //return success
+
+  return{
+    url,
+    emailId: data.id,
+  }
+}
